@@ -2,6 +2,8 @@ import { useNavigate } from "react-router-dom";
 
 export const PublicacionCard = ({ publicacion }) => {
     const navigate = useNavigate();
+   
+
 
     const handleClick = () => {
         navigate(`/publicaciones/${publicacion._id}`, { state: { publicacion } });
@@ -11,13 +13,14 @@ export const PublicacionCard = ({ publicacion }) => {
         <div
             key={publicacion._id}
             className="card"
+           
             onClick={handleClick}
         >
             {publicacion.tag !== 'publicacion' && (
                 <div className="imagen">
                     <img src={publicacion.adjunto[0]?.url ?? "/notFound.jpg"}
                         alt={publicacion.titulo}
-                        className="thumbnail" />
+                        className="object-fill h-60 w-96" />
                 </div>
             )}
             {publicacion.tag !== 'publicacion' && (
