@@ -3,6 +3,7 @@ import { Archivo } from '../models/archivo.model';
 import { Folder } from '../models/folder.model';
 import { uploadFile } from '../utils/digitalOceanSpace';
 import { IArchivo } from '../interfaces/archivo.interface';
+import mongoose from 'mongoose';
 
 class BibliotecaController {
     /**
@@ -307,6 +308,71 @@ class BibliotecaController {
         }
     }
 
+    /**
+     * @description: Busca un archivo de la biblioteca
+     * @route: GET /biblioteca/search?params=values
+     *   @param texto: Texto a buscar en el nombre del archivo o tipoArchivo (o folder)
+     *   @param tipoArchivo: Tipo de archivo a buscar
+     *   @param autor: ID del autor del archivo
+     * @param req: Request
+     * @param res: Response
+     * @returns: Response
+     */
+    static async filterArchivo(req: Request, res: Response) {
+        try {
+            const { texto, tipoArchivo, autor } = req.query;
+
+            const filtro: any = {};
+            let carpetasCoincidentes: string | any[] = [];
+
+            // Filtro por texto (nombre del archivo o tipoArchivo)
+            if (texto) {
+                filtro.$or = [
+                    { nombre: { $regex: texto, $options: 'i' } },
+                    { tipoArchivo: { $regex: texto, $options: 'i' } }
+                ];
+                carpetasCoincidentes = await Folder.find({
+                    nombre: { $regex: texto as string, $options: 'i' }
+                });
+            }
+
+            // Filtro por tipo de archivo (por si se desea buscar por tipo aparte de la barra de búsqueda)
+            if (tipoArchivo) {
+                filtro.tipoArchivo = { $regex: tipoArchivo, $options: 'i' };
+            }
+
+            // Filtro por autor (asegura que sea un ObjectId válido si aplica)
+            if (autor) {
+                if (!mongoose.Types.ObjectId.isValid(autor as string)) {
+                    res.status(400).json({ message: 'ID de autor inválido' });
+                    return;
+                }
+                filtro.autor = autor;
+            }
+
+            // Si no hay ningún filtro válido, no hacemos búsqueda
+            if (Object.keys(filtro).length === 0 && !texto) {
+                res.status(400).json({ message: 'Debe proporcionar al menos un parámetro de búsqueda' });
+                return;
+            }
+
+            // Buscar archivos según filtros
+            const archivos = await Archivo.find(filtro).populate('folder');
+
+            // Si no hay resultados en ambos
+            if (archivos.length === 0 && carpetasCoincidentes.length === 0) {
+                res.status(404).json({ message: 'No se encontraron resultados con esos criterios' });
+                return;
+            }
+
+            res.status(200).json({
+                carpetas: carpetasCoincidentes,
+                archivos
+            });
+        } catch (error) {
+            const err = error as Error;
+            res.status(500).json({ message: err.message });
+        }
+    }
 }
 export default BibliotecaController;
-
