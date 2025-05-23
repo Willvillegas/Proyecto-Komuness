@@ -9,6 +9,9 @@ import {BibliotecaFolder} from './bibliotecaFolder'
 import FormularioPublicacion from "../pages/formulario";
 import {IniciarSesion} from './iniciarSesion'
 import {RecuperarContra} from './recuperarContra'
+import {NuevaContra} from './nuevaContra'
+import {CrearUsuario} from './crearUsuario'
+import {GenerarCodigo} from './generarCodigo'
 export const Rutas = () =>{
     
     return(
@@ -26,6 +29,11 @@ export const Rutas = () =>{
                 <Route path = "/formulario" element= {<FormularioPublicacion/>}/>
                 <Route path = "/iniciarSesion" element= {<IniciarSesion/>}/>
                 <Route path = "/recuperar" element= {<RecuperarContra/>}/>
+                <Route path = "/nuevaCont" element= {<NuevaContra/>}/>
+                 <Route path = "/crearUsr" element= {<CrearUsuario/>}/>
+
+
+                  <Route path = "/codigoGen" element= {<GenerarCodigo/>}/>
                 
                 <Route path="*" element={<Navigate to="/publicaciones" />} />
             </Routes>
