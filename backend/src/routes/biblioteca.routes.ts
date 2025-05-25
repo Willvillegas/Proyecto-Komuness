@@ -7,8 +7,6 @@ const upload = multer({ storage });
 const router = Router();
 
 
-/* FRONTEND LEA ESTO Y NO SEA VAGO XD */
-
 //**************** Rutas de los archivos ************************ */
 /**FUNCIONA
  * Posibles respuestas del endpoint:
@@ -164,6 +162,9 @@ router.post("/folder", BibliotecaController.createFolder as any);
  *  }
  */
 router.route("/folder/:id").delete(BibliotecaController.deleteFolder as any);
+
+
+router.put("/edit/:id", BibliotecaController.updateFile as any);
 
 export default router;
 
