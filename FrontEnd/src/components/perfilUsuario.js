@@ -7,10 +7,14 @@ import "../CSS/perfilUsuario.css";
 export const PerfilUsuario = () => {
   const [publicaciones, setPublicaciones] = useState([]);
   const [archivos, setArchivos] = useState([]);
+  var usuario = JSON.parse(localStorage.getItem("user"));
 
   useEffect(() => {
     fetch(
-      `https://proyecto-komuness-backend.vercel.app/publicaciones/?publicado=false`
+      `https://proyecto-komuness-backend.vercel.app/publicaciones/?publicado=false`,
+      {
+        credentials: "include",
+      }
     )
       .then((res) => res.json())
       .then((data) => setPublicaciones(data.data))
@@ -19,7 +23,10 @@ export const PerfilUsuario = () => {
 
   useEffect(() => {
     fetch(
-      `https://proyecto-komuness-backend.vercel.app/biblioteca/list/0?publico=false&global=true`
+      `https://proyecto-komuness-backend.vercel.app/biblioteca/list/0?publico=false&global=true`,
+      {
+        credentials: "include",
+      }
     )
       .then((res) => res.json())
       .then((data) => setArchivos(data.contentFile))
@@ -104,7 +111,7 @@ export const PerfilUsuario = () => {
     }
   };
 
-  const rechazarArchivo= async (id) => {
+  const rechazarArchivo = async (id) => {
     const promesa = fetch(
       `https://proyecto-komuness-backend.vercel.app/biblioteca/delete/${id}`,
       {
@@ -134,14 +141,16 @@ export const PerfilUsuario = () => {
 
         <div className="text-white text-center md:text-left">
           <div>
-            <span className="text-xl font-semibold">Nombre de usuario</span>
+            <span className="text-xl font-semibold">
+              {usuario?.nombre} {usuario?.apellido}
+            </span>
           </div>
           <div>
             <a
-              href="mailto:correo@ejemplo.com"
+              href={`mailto:${usuario?.email}`}
               className="text-blue-400 hover:underline"
             >
-              correo@ejemplo.com
+              {usuario?.email}
             </a>
           </div>
         </div>
