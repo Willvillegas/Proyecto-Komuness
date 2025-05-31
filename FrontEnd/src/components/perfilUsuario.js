@@ -1,17 +1,20 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AiOutlineUser } from "react-icons/ai";
 import { toast } from "react-hot-toast";
-
+import { API_URL } from '../utils/api';
 import "../CSS/perfilUsuario.css";
+import { useAuth } from "./context/AuthContext";
 
 export const PerfilUsuario = () => {
+  const navigate = useNavigate();
   const [publicaciones, setPublicaciones] = useState([]);
   const [archivos, setArchivos] = useState([]);
-  var usuario = JSON.parse(localStorage.getItem("user"));
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     fetch(
-      `https://proyecto-komuness-backend.vercel.app/publicaciones/?publicado=false`,
+      `${API_URL}/publicaciones/?publicado=false`,
       {
         credentials: "include",
       }
@@ -23,7 +26,7 @@ export const PerfilUsuario = () => {
 
   useEffect(() => {
     fetch(
-      `https://proyecto-komuness-backend.vercel.app/biblioteca/list/0?publico=false&global=true`,
+      `${API_URL}/biblioteca/list/0?publico=false&global=true`,
       {
         credentials: "include",
       }
@@ -35,7 +38,7 @@ export const PerfilUsuario = () => {
 
   const aceptarPost = async (id) => {
     const promesa = fetch(
-      `https://proyecto-komuness-backend.vercel.app/publicaciones/${id}`,
+      `${API_URL}/publicaciones/${id}`,
       {
         method: "PUT", // o PATCH, según tu API
         headers: { "Content-Type": "application/json" },
@@ -59,7 +62,7 @@ export const PerfilUsuario = () => {
 
   const rechazarPost = async (id) => {
     const promesa = fetch(
-      `https://proyecto-komuness-backend.vercel.app/publicaciones/${id}`,
+      `${API_URL}/publicaciones/${id}`,
       {
         method: "DELETE",
       }
@@ -89,7 +92,7 @@ export const PerfilUsuario = () => {
 
   const aceptarArchivo = async (id) => {
     const promesa = fetch(
-      `https://proyecto-komuness-backend.vercel.app/biblioteca/edit/${id}`,
+      `${API_URL}/biblioteca/edit/${id}`,
       {
         method: "PUT", // o PATCH, según tu API
         headers: { "Content-Type": "application/json" },
@@ -113,7 +116,7 @@ export const PerfilUsuario = () => {
 
   const rechazarArchivo = async (id) => {
     const promesa = fetch(
-      `https://proyecto-komuness-backend.vercel.app/biblioteca/delete/${id}`,
+      `${API_URL}/biblioteca/delete/${id}`,
       {
         method: "DELETE",
       }
@@ -142,20 +145,33 @@ export const PerfilUsuario = () => {
         <div className="text-white text-center md:text-left">
           <div>
             <span className="text-xl font-semibold">
-              {usuario?.nombre} {usuario?.apellido}
+              {user?.nombre} {user?.apellido}
             </span>
           </div>
           <div>
             <a
-              href={`mailto:${usuario?.email}`}
+              href={`mailto:${user?.email}`}
               className="text-blue-400 hover:underline"
             >
-              {usuario?.email}
+              {user?.email}
             </a>
+          </div>
+          <div>
+            <button
+              onClick={() => {
+                logout();
+                navigate('/');
+
+              }}
+              className="mt-4 bg-red-500 hover:bg-red-600 text-white font-medium px-4 py-2 rounded"
+            >
+              Cerrar sesión
+            </button>
           </div>
         </div>
       </div>
 
+{user && user.tipoUsuario === 0 && (
       <div className="w-full md:w-2/3 flex flex-col gap-4 bg-white rounded-lg shadow p-4">
         <h1 className="text-black">Dashboard Administrativo</h1>
         <div className="overflow-x-auto max-h-[300px] overflow-y-auto bg-white rounded-lg shadow p-4">
@@ -230,10 +246,10 @@ export const PerfilUsuario = () => {
               {archivos && archivos.length > 0 ? (
                 archivos.map((item) => (
                   <tr key={item._id} className="border-t">
-                    <td className="px-4 py-2">{item.autor ? item.autor : "Sin autor"}</td>
+                    <td className="px-4 py-2">{item.autor ? item.autor.nombre : "Sin autor"}</td>
                     <td className="px-4 py-2">{item.nombre}</td>
                     <td className="px-4 py-2">{formatearTamano(item.tamano)}</td>
-                    <td className="px-4 py-2">{item.fechaSubida}</td>
+                    <td className="px-4 py-2">{item.fechaSubida ? new Date(item.fechaSubida).toLocaleDateString('es-ES') : 'Fecha no disponible'}</td>
                     <td className="px-4 py-2 space-x-2">
                       <div className="flex flex-col gap-2 justify-center">
                         <button
@@ -266,6 +282,7 @@ export const PerfilUsuario = () => {
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 };

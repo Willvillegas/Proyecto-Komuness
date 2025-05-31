@@ -15,6 +15,9 @@ import {
 
 } from 'react-icons/ai'
 import { useDropzone } from 'react-dropzone'
+import { toast } from "react-hot-toast";
+import { useAuth } from "../components/context/AuthContext";
+import { API_URL } from '../utils/api';
 
 export const Biblioteca = () => {
   const navigate = useNavigate();
@@ -22,23 +25,53 @@ export const Biblioteca = () => {
   const [selectedDoc, setSelectedDoc] = useState(null);
   const handleOpenModal = (doc) => setSelectedDoc(doc);
   const handleCloseModal = () => setSelectedDoc(null);
+  
   const handleDownload = () => {
-    alert(`Descargando: ${selectedDoc.nombre}`);
+    
+    const link = document.createElement('a');
+    link.href = selectedDoc.url;
+    link.target = '_blank'; 
+    link.rel = 'noopener noreferrer'; 
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
     handleCloseModal();
   };
 
-  //Json prueba
-  const [documentos, setDocumentos] = useState([
-    /*{nombre: "Carpeta office", autor: "",size: "",tag: "carpeta",},
-    {nombre: "Nombre largo de archivo para prueba de espacio en la caja de archivos en la seccion de biblioteca del proyecto ", autor: "Juan Pérez", size: "1.2 MB", tag: "pdf", },
-    {nombre: "Presupuesto Q1", autor: "Ana Gómez",size: "850 KB",tag: "excel",},
-    {nombre: "Acta Reunión",autor: "Luis Martínez",size: "620 KB",tag: "word", },
-    {nombre: "Presentación Ventas",autor: "Camila Torres",size: "4.1 MB",tag: "ppt",},
-    {nombre: "Notas de Proyecto",autor: "Pedro Sánchez",size: "150 KB",tag: "text",},
-    {nombre: "Diseño Logo",autor: "Laura Gómez",size: "3.3 MB",tag: "img",},
-    {nombre: "Archivos Comprimidos",autor: "Equipo TI",size: "5.4 MB",tag: "zip",},
-    {nombre: "Documento sin tipo",autor: "Desconocido",size: "100 KB",tag: "otro",},*/
-  ]);
+  const apiUrl = process.env.REACT_APP_BACKEND_URL;
+  console.log('URL de la API:', apiUrl);
+
+
+  const handleDelete = async () => {
+    try {
+      await toast.promise(
+        fetch(`${API_URL}/biblioteca/delete/${selectedDoc.id}`, {
+          method: "DELETE",
+        }).then((res) => {
+          if (!res.ok) throw new Error("No se pudo eliminar el archivo");
+          return res.json();
+        }),
+        {
+          loading: "Eliminando archivo...",
+          success: "¡Archivo eliminado!",
+          error: "Error al eliminar el archivo",
+        }
+      );
+
+      setDocumentos((prevDocs) =>
+        prevDocs.filter((doc) => doc.id !== selectedDoc.id)
+      );
+
+      handleCloseModal();
+    } catch (error) {
+      // El error ya fue mostrado con toast, no es necesario hacer más
+    }
+  };
+
+  const { user } = useAuth();
+  
+  const [documentos, setDocumentos] = useState([]);
 
   const modalIconMap = {
     pdf: <AiFillFilePdf className="text-[#ed1c22] text-7xl" />,
@@ -83,19 +116,40 @@ export const Biblioteca = () => {
    * en el ejemplo anterior se busca desde la carpeta con <idcarpeta> solo en esa carpeta el "nombreArchivo"
    */
 
-  const { acceptedFiles, getRootProps, getInputProps, isDragActive } = useDropzone()
+  const maxSize = 100 * 1024 * 1024; // 100 MB
+  const { 
+    acceptedFiles, 
+    fileRejections,
+    getRootProps, 
+    getInputProps, 
+    isDragActive 
+  } = useDropzone({
+    maxSize,
+    onDropRejected: (fileRejections) => {
+      fileRejections.forEach(({ file, errors }) => {
+        errors.forEach(error => {
+          if (error.code === 'file-too-large') {
+            toast.error(`El archivo ${file.name} es demasiado grande. Tamaño máximo permitido: ${maxSize} MB.`);
+          } else {
+            toast.error(`Error al subir el archivo ${file.name}: ${error.message}`);
+          }
+        });
+      });
+    }
+  })
 
   const files = acceptedFiles.map(file => (
     // <li key={file.name}>
     //   {file.name} - {file.size} bytes
     // </li>
     // console.log(file)
-    <div className='mb-5'>
+    <div className='flex flex-wrap justify-center gap-4 w-full max-w-6xl p-4'>
       <DocumentCard
         key={file.name}
         name={file.name}
-        author={'Desconocido'}
-        size={file.size}
+        author={user.nombre || "Anónimo"} // Cambia esto según cómo obtengas el autor
+        size={`${(file.size / (1024 * 1024)).toFixed(2)} MB`}
+        
         type={file.type}
       />
     </div>
@@ -110,35 +164,39 @@ export const Biblioteca = () => {
 
   // SUBIDA DE ARCHIVOS
   const idCarpeta = 0;
-  const idUser = "Animo";
   async function handleOnSubmit(params) {
     params.preventDefault();
 
     const data = new FormData();
     acceptedFiles.forEach((archivo) => {
-      data.append("archivos", archivo); 
+      data.append("archivos", archivo);
     });
-    // data.append("folderId",idCarpeta.toString()) Si le envío id, es porque hay una carpeta
-    data.append("userId", idUser.toString())
+    data.append("userId", user._id);
 
-    try {
-      const response = await fetch('http://localhost:3000/biblioteca/upload/', {
-      // const response = await fetch('https://proyecto-komuness-backend.vercel.app/biblioteca/upload/', {
+  
+
+    await toast.promise(
+      fetch(`${API_URL}/biblioteca/upload/`, {
         method: 'POST',
         body: data,
-      });
-
-      const result = await response.json(); 
-      if (response.ok) {
-        console.log("Archivos subidos con éxito:", result);
-      } else {
-        console.error("Error al subir archivos:", result);
+      })
+        .then(async (response) => {
+          const result = await response.json();
+          if (!response.ok) {
+            throw new Error(result.message || 'Error al subir archivos');
+          }
+          return result;
+        }),
+      {
+        loading: 'Subiendo archivos...',
+        success: 'Archivos subidos con éxito, solicita a un administrador que lo publique 🎉',
+        error: (err) => `Error: ${err.message}`,
+        duration: 8000,
       }
+    );
 
-    } catch (error) {
-      console.error("Error de red:", error);
-    }
   }
+
 
   // SEARCH
   const [nombre, setNombre] = useState('');
@@ -148,21 +206,30 @@ export const Biblioteca = () => {
     console.log("Buscando: ", { nombre, etiqueta })
 
     try {
-      // const respuesta = await fetch("https://api.ejemplo.com/documentos");
-      // const datos = await respuesta.json();
-      const datos = [{
-        nombre: "Informe Final",
-        autor: "Anonimo",
-        size: "2.0 MB",
-        tag: "pdf"
-      },
-      { nombre: "Nombre largo de archivo para prueba de espacio en la caja de archivos en la seccion de biblioteca del proyecto ", autor: "Juan Pérez", size: "1.2 MB", tag: "pdf", },
-      { nombre: "Presupuesto Q1", autor: "Ana Gómez", size: "850 KB", tag: "excel", },
-      ];
-      setDocumentos(datos);
-    } catch (error) {
-      console.log("Error al buscar documentos:", error);
-    }
+      const respuesta = await fetch(`${API_URL}/biblioteca/list/0?nombre=${nombre}&etiqueta=${etiqueta}&global=true&publico=true`);
+      const datos = await respuesta.json();
+      const archivos = datos.contentFile.map(file => ({
+          nombre: file.nombre,
+          autor: file.autor,
+          size: `${(file.tamano / (1024 * 1024)).toFixed(2)} MB`,
+          tag: mapTipoArchivo(file.tipoArchivo),
+          url: file.url,
+          id: file._id
+      }));
+
+      const carpetas = datos.contentFolder.map(folder => ({
+          nombre: folder.nombre,
+          autor: "",
+          size: "",
+          tag: "carpeta",
+          id: folder._id
+      }));
+
+      setDocumentos([...carpetas, ...archivos]);
+        console.log("Archivos obtenidos:", datos);
+      } catch (error) {
+        console.error("Error al obtener archivos:", error);
+      }
   }
 
   // OBTENER TODOS LOS ARCHIVOS
@@ -170,14 +237,15 @@ export const Biblioteca = () => {
   useEffect(() => {
     const obtenerArchivos = async () => {
       try {
-        const response = await fetch(`https://proyecto-komuness-backend.vercel.app/biblioteca/list/${ubicacion}`);
+        const response = await fetch(`${API_URL}/biblioteca/list/${ubicacion}?publico=true`);
         const data = await response.json();
         const archivos = data.contentFile.map(file => ({
           nombre: file.nombre,
           autor: file.autor,
           size: `${(file.tamano / (1024 * 1024)).toFixed(2)} MB`,
           tag: mapTipoArchivo(file.tipoArchivo),
-          url: file.url
+          url: file.url,
+          id: file._id
         }));
 
         const carpetas = data.contentFolder.map(folder => ({
@@ -212,42 +280,58 @@ export const Biblioteca = () => {
 
   return (
 
-    <div className="flex flex-col items-center gap-4  bg-gray-800/80 pt-16 min-h-screen  ">
+    <div className="flex flex-col items-center gap-4  bg-gray-800/80 pt-16 min-h-screen p-4 sm:p-8">
 
       <h1 className="text-4xl sm:text-5xl font-bold text-white drop-shadow-[0_2px_6px_rgba(0,0,0,1)]">
         <span className="text-gray-200">Biblioteca</span>
       </h1>
-
-      <div
-        {...getRootProps()}
-        className="flex flex-col items-center justify-center border-2 border-dashed border-gray-400 rounded-xl p-8 text-center cursor-pointer transition hover:border-blue-500 hover:bg-blue-50"
-      >
-        <input {...getInputProps()} />
-        {isDragActive ? (
-          <p className="text-blue-600 font-medium">Suelta los archivos aquí ...</p>
-        ) : (
-          <p className="text-gray-600">
-            Arrastra y suelta algunos archivos aquí, o{' '}
-            <span className="text-blue-600 underline">haz clic para seleccionarlos</span>
-          </p>
-        )}
-      </div>
-
-      {acceptedFiles.length !== 0 && (
-        <div className="mt-6 space-y-4">
-          <div className='grid grid-cols-2 gap-8'>
-            <button
-              onClick={handleOnSubmit}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow transition"
-            >
-              Subir
-            </button>
-          </div>
-          <ul className="">{files}</ul>
+      {user && user.tipoUsuario === 0 && (
+        
+      
+      <div className="flex flex-wrap justify-center gap-4 w-full max-w-6xl p-4">
+        <div
+          {...getRootProps()}
+          className="flex flex-col items-center justify-center border-2 border-dashed border-gray-400 rounded-xl p-8 text-center cursor-pointer transition hover:border-blue-500 hover:bg-blue-50"
+        >
+          <input {...getInputProps()} />
+          {isDragActive ? (
+            <p className="text-blue-600 font-medium">Suelta los archivos aquí ...</p>
+          ) : (
+            <p className="text-gray-600">
+              Arrastra y suelta algunos archivos aquí, o{' '}
+              <span className="text-blue-600 underline">haz clic para seleccionarlos</span>
+            </p>
+          )}
         </div>
+
+        <div>
+        {fileRejections.length > 0 && (
+          <div className="mt-4 text-red-600">
+            Algunos archivos no se pudieron subir por exceder el tamaño máximo permitido de 10 MB.
+          </div>
+        )}
+        </div>
+
+        {acceptedFiles.length !== 0 && (
+          <div className="w-full max-w-6xl px-4 mt-6 space-y-6">
+            
+            <div className="flex justify-center">
+              <button
+                onClick={handleOnSubmit}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl shadow-md transition focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                Subir
+              </button>
+            </div>
+
+            <div className="">
+              {files}
+            </div>
+          </div>
+        )}
+
+      </div>
       )}
-
-
       <div className="w-full px-4 py-2 text-black">
         <form className="flex flex-col md:flex-row gap-2 md:items-center w-full">
 
@@ -255,7 +339,7 @@ export const Biblioteca = () => {
           <input
             type="text"
             placeholder="Buscar por nombre..."
-            className="w-full md:w-auto flex-1 px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full md:w-auto flex-1 px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 border-gray-300 shadow-sm"
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
           />
@@ -280,7 +364,7 @@ export const Biblioteca = () => {
 
           {/* <!-- Botón de búsqueda --> */}
           <button
-            className="w-full md:w-auto px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
+            className="w-full focus:ring focus:outline md:w-auto px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
             onClick={handleSearch}
           >
             Buscar
@@ -289,23 +373,24 @@ export const Biblioteca = () => {
         </form>
       </div>
 
-
-      {documentos.map((doc, index) => (
-        <DocumentCard
-          key={index}
-          name={doc.nombre}
-          author={doc.autor}
-          size={doc.size}
-          type={doc.tag}
-          onClick={() => {
-            if (doc.tag === 'carpeta') {
-              handleNavigation(doc.id, doc.nombre);
-            } else {
-              handleOpenModal(doc);
-            }
-          }}
-        />
-      ))}
+      <div className="flex flex-wrap justify-center gap-4 w-full max-w-6xl p-4">
+        {documentos.map((doc, index) => (
+          <DocumentCard
+            key={index}
+            name={doc.nombre}
+            author={doc.autor}
+            size={doc.size}
+            type={doc.tag}
+            onClick={() => {
+              if (doc.tag === 'carpeta') {
+                handleNavigation(doc.id, doc.nombre);
+              } else {
+                handleOpenModal(doc);
+              }
+            }}
+          />
+        ))}
+      </div>
 
       <DocumentModal
         isOpen={!!selectedDoc}
@@ -315,6 +400,7 @@ export const Biblioteca = () => {
         icon={modalIconMap[selectedDoc?.tag] || modalIconMap.default}
         onClose={handleCloseModal}
         onDownload={handleDownload}
+        onDelete={handleDelete}
       />
 
     </div>
