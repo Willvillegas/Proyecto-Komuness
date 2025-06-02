@@ -1,18 +1,47 @@
 import { IoMdArrowRoundBack } from "react-icons/io";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { API_URL } from "../utils/api";
 
 import Slider from "./slider";
 import ComentariosPub from "./comentariosPub";
+import PublicacionModal from "./publicacionModal";
+import { useAuth } from "./context/AuthContext";
 
 export const PublicacionDetalle = () => {
-  const location = useLocation();
   const navigate = useNavigate();
 
-  var usuario = JSON.parse(localStorage.getItem("user"))
-
+  const { user } = useAuth();
+  const [selectedPub, setSelectedPub] = useState(false);
   const [comentarios, setComentarios] = useState([]);
-  const publicacion = location.state?.publicacion;
+  const { id } = useParams();
+  const [publicacion, setPublicacion] = useState(null);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState(null);
+  
+  useEffect(() => {
+    const obtenerPublicacion = async () => {
+      try {
+        setCargando(true);
+        setError(null);
+
+        const response = await fetch(`${API_URL}/publicaciones/${id}`);
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.mensaje || "No se encontró la publicación");
+        }
+        setPublicacion(data);
+      } catch (error) {
+        setError(error.message);
+      } finally {
+        setCargando(false);
+      }
+    }
+    if (id) {
+      obtenerPublicacion();
+    }
+  }, [id]);
 
   useEffect(() => {
     if (publicacion?.comentarios) {
@@ -20,12 +49,33 @@ export const PublicacionDetalle = () => {
     }
   }, [publicacion]);
 
-  if (!publicacion) {
+  if (cargando) {
     return (
-      <h2 className="text-center text-xl font-semibold mt-10">
-        Publicación no encontrada
-      </h2>
+    <div className="flex flex-col items-center justify-center mt-10 bg-gray-800/80">
+      <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+      <h2 className="text-white-600">Cargando publicación...</h2>
+    </div>
+  );
+  }
+
+  if (error) {
+    return (
+      <div className="flex justify-center items-center py-20">
+        <div className="flex flex-col justify-center items-center h-96 bg-gray-900/80 text-white rounded-lg shadow-lg p-8 w-full max-w-md text-center">
+          <p className="text-lg mb-4">{error}</p>
+          <button
+            onClick={() => (window.location.href = "/publicaciones")}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded"
+          >
+            Volver a publicaciones
+          </button>
+        </div>
+      </div>
     );
+  }
+
+  if (!publicacion) {
+    return null; 
   }
 
   return (
@@ -43,7 +93,7 @@ export const PublicacionDetalle = () => {
 
         {
           <div>
-            <h1 className="text-3xl font-bold text-white">
+            <h1 className="text-3xl font-bold text-white flex flex-row items-center justify-between">
               <button
                 type="button"
                 onClick={() => navigate(-1)}
@@ -52,6 +102,24 @@ export const PublicacionDetalle = () => {
                 <IoMdArrowRoundBack color={"black"} size={25} />
               </button>
               {publicacion.titulo}
+              {user && user.tipoUsuario === 0 && (
+                <div>
+                    <button className="w-full bg-red-500 py-2 px-4 rounded hover:bg-red-600 mx-auto block"
+                        onClick={()=>setSelectedPub(true)}
+                    >
+                        Eliminar
+                    </button>
+                    
+                    <PublicacionModal
+                        name = {publicacion.titulo}
+                        date = {publicacion.fecha}
+                        tag = {publicacion.tag}
+                        id = {publicacion._id}
+                        isOpen={selectedPub}
+                        onClose={()=>setSelectedPub(false)}
+                    />
+                </div>
+            )}
             </h1>
             <h2>
               {publicacion.autor
@@ -76,7 +144,7 @@ export const PublicacionDetalle = () => {
           comentarios={comentarios}
           setComentarios={setComentarios}
           publicacionId={publicacion._id}
-          usuario={usuario}
+          usuario={user}
         />
       </div>
     </div>
