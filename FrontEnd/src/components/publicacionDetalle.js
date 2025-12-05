@@ -1,24 +1,80 @@
-import { IoMdArrowRoundBack } from "react-icons/io";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { 
+  IoMdArrowRoundBack, 
+  IoMdCall, 
+  IoMdLink, 
+  IoMdPerson, 
+  IoMdSchool, 
+  IoMdStar, 
+  IoMdMail,   
+  IoLogoFacebook, 
+  IoLogoInstagram,
+  IoMdTrash, 
+  IoLogoWhatsapp,
+  IoMdCreate  
+} from "react-icons/io";
+import { useNavigate, useParams } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { API_URL } from "../utils/api";
-
+import { API_URL, getCategoriaById } from "../utils/api";
+import { EditarPublicacionModal } from './EditarPublicacionModal';
 import Slider from "./slider";
 import ComentariosPub from "./comentariosPub";
 import PublicacionModal from "./publicacionModal";
 import { useAuth } from "./context/AuthContext";
+import CategoriaBadge from "./categoriaBadge";
+import '../CSS/publicacionDetalle.css';
 
 export const PublicacionDetalle = () => {
   const navigate = useNavigate();
 
   const { user } = useAuth();
+
+ // ========== FUNCIÓN FORMATFECHA CORREGIDA ==========
+   // MODIFICACIÓN: Se corrigió el problema de zona horaria
+  // que causaba que las fechas se mostraran un día después
+  const formatFecha = (fechaStr) => {
+    if (!fechaStr) return "Sin fecha";
+    
+    const meses = [
+      "enero", "febrero", "marzo", "abril", "mayo", "junio",
+      "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+    ];
+    
+    let fecha;
+    
+    // Si la fecha viene en formato dd/mm/yyyy
+    if (fechaStr.includes("/")) {
+      const partes = fechaStr.split("/");
+      if (partes.length === 3) {
+      // CAMBIO: Crear fecha usando componentes directamente para evitar zona horaria
+        fecha = new Date(parseInt(partes[2]), parseInt(partes[1]) - 1, parseInt(partes[0]));
+      }
+    } 
+    // Si la fecha viene en formato ISO (yyyy-mm-dd) o similar
+    else if (fechaStr.includes("-")) {
+      const partes = fechaStr.split("T")[0];
+      const [año, mes, dia] = partes.split("-").map(num => parseInt(num));
+      fecha = new Date(año, mes - 1, dia);
+    }
+     // Fallback: intentar parsear directamente
+    else {
+      fecha = new Date(fechaStr);
+    }
+
+    // Verificar si la fecha es válida
+    if (isNaN(fecha)) return fechaStr;
+    
+    return `${fecha.getDate()} de ${meses[fecha.getMonth()]} de ${fecha.getFullYear()}`;
+  };
+
   const [selectedPub, setSelectedPub] = useState(false);
   const [comentarios, setComentarios] = useState([]);
   const { id } = useParams();
   const [publicacion, setPublicacion] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
-  
+  const [categoriaCompleta, setCategoriaCompleta] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+
   useEffect(() => {
     const obtenerPublicacion = async () => {
       try {
@@ -27,20 +83,30 @@ export const PublicacionDetalle = () => {
 
         const response = await fetch(`${API_URL}/publicaciones/${id}`);
         const data = await response.json();
-        
+
         if (!response.ok) {
           throw new Error(data.mensaje || "No se encontró la publicación");
         }
+
+         // Popular categoría si viene como id
+        if (data.categoria && typeof data.categoria === "string") {
+          const categoriaData = await getCategoriaById(data.categoria);
+          if (categoriaData) {
+            setCategoriaCompleta(categoriaData);
+          }
+        } else if (data.categoria && data.categoria.nombre) {
+          setCategoriaCompleta(data.categoria);
+        }
+
         setPublicacion(data);
       } catch (error) {
         setError(error.message);
       } finally {
         setCargando(false);
       }
-    }
-    if (id) {
-      obtenerPublicacion();
-    }
+    };
+
+    if (id) obtenerPublicacion();
   }, [id]);
 
   useEffect(() => {
@@ -49,23 +115,87 @@ export const PublicacionDetalle = () => {
     }
   }, [publicacion]);
 
+// === PRECIO (normalizado) ===
+  const formatPrecio = (precio) => {
+    if (precio === 0 || precio === '0') return 'Gratis';
+    if (Number.isFinite(Number(precio))) {
+      return `₡ ${Number(precio).toLocaleString("es-CR")}`;
+    }
+    return 'No especificado';
+  };
+
+  const precioRegular = publicacion?.precio;
+  const precioEstudiante = publicacion?.precioEstudiante;
+  const precioCiudadanoOro = publicacion?.precioCiudadanoOro;
+
+  const mostrarPrecios = publicacion && 
+    (publicacion.tag === "evento" || publicacion.tag === "emprendimiento");
+  
+// === HORA DEL EVENTO (simple, ya viene "HH:mm") ===
+    const mostrarHora =
+    publicacion?.tag === "evento" &&
+    typeof publicacion?.horaEvento === "string" &&
+    publicacion.horaEvento.trim() !== "";
+
+// === TELÉFONO ===
+    const telefono = publicacion?.telefono;
+     
+// === ENLACES EXTERNOS ===
+  const enlacesExternos = publicacion?.enlacesExternos || [];
+
+   // Función para formatear correctamente los enlaces
+  const formatearEnlace = (url) => {
+    // Si es un correo sin mailto:, agregar el prefijo
+    if (url.includes('@') && !url.startsWith('mailto:')) {
+      return `mailto:${url}`;
+    }
+    if (/^[\d\s\-\+\(\)]+$/.test(url.replace(/\s/g, '')) && !url.startsWith('tel:')) {
+      return `tel:${url}`;
+    }
+    if (!url.startsWith('http://') && !url.startsWith('https://') && 
+        !url.startsWith('mailto:') && !url.startsWith('tel:') &&
+        url.includes('.') && !url.includes(' ')) {
+      return `https://${url}`;
+    }
+    return url;
+  };
+
+  const obtenerIconoEnlace = (url) => {
+    if (url.includes('@') || url.startsWith('mailto:')) {
+      return <IoMdMail className="publicacion-icon" size={14} />;
+    }
+    if (url.includes('tel:') || /^[\d\s\-\+\(\)]+$/.test(url.replace(/\s/g, ''))) {
+      return <IoMdCall className="publicacion-icon" size={14} />;
+    }
+    if (url.includes('facebook.com')) {
+      return <IoLogoFacebook className="publicacion-icon" size={14} />;
+    }
+    if (url.includes('instagram.com')) {
+      return <IoLogoInstagram className="publicacion-icon" size={14} />;
+    }
+    if (url.includes('whatsapp.com') || url.includes('wa.me')) {
+      return <IoLogoWhatsapp className="publicacion-icon" size={14} />;
+    }
+    return <IoMdLink className="publicacion-icon" size={14} />;
+  };
+
   if (cargando) {
     return (
-    <div className="flex flex-col items-center justify-center mt-10 bg-gray-800/80">
-      <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-      <h2 className="text-white-600">Cargando publicación...</h2>
-    </div>
-  );
+      <div className="publicacion-loading">
+        <div className="publicacion-spinner"></div>
+        <h2 className="text-white">Cargando publicación...</h2>
+      </div>
+    );
   }
 
   if (error) {
     return (
-      <div className="flex justify-center items-center py-20">
-        <div className="flex flex-col justify-center items-center h-96 bg-gray-900/80 text-white rounded-lg shadow-lg p-8 w-full max-w-md text-center">
+      <div className="publicacion-error-container">
+        <div className="publicacion-error-card">
           <p className="text-lg mb-4">{error}</p>
           <button
             onClick={() => (window.location.href = "/publicaciones")}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded"
+            className="publicacion-error-btn"
           >
             Volver a publicaciones
           </button>
@@ -74,91 +204,240 @@ export const PublicacionDetalle = () => {
     );
   }
 
-  if (!publicacion) {
-    return null; 
-  }
+  if (!publicacion) return null;
 
   return (
-    <div className="min-h-screen bg-gray-800/80">
-      <div className="max-w-4xl mx-auto p-4 space-y-6">
-        <div className="md:hidden flex justify-between w-full mb-4">
+    <div className="publicacion-detalle-container">
+      <div className="publicacion-content-wrapper">
+        {/* Header con botón de regreso y acciones - ÚNICO PARA TODOS LOS DISPOSITIVOS */}
+        <div className="publicacion-header-bar">
+          {/* Botón de regreso - Izquierda */}
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="text-gray-600 text-2xl font-bold"
+            className="publicacion-back-btn"
           >
-            <IoMdArrowRoundBack color={"white"} size={35} />
+            <IoMdArrowRoundBack color="black" size={21} />
           </button>
+
+          {/* Clasificación - Centro */}
+          <div className="publicacion-category-display">
+            <strong className="text-white text-sm md:text-base">Clasificación:</strong>
+            <CategoriaBadge categoria={categoriaCompleta} mobile />
+          </div>
+
+          {/* BOTONES DE ACCIÓN - Derecha */}
+          <div className="publicacion-actions">
+            {/* Botón Editar - para el autor */}
+            {user && user._id === publicacion.autor?._id && (
+              <button
+                onClick={() => setShowEditModal(true)}
+                className="publicacion-action-btn publicacion-edit-btn"
+              >
+                <IoMdCreate size={16} />
+                <span className="hidden md:inline">Editar</span>
+              </button>
+            )}
+
+            {/* Botón Eliminar - solo para administradores */}
+            {user && (user.tipoUsuario === 0 || user.tipoUsuario === 1) && (
+            <button
+              className="publicacion-action-btn publicacion-delete-btn"
+              onClick={() => setSelectedPub(true)}
+            >
+              <IoMdTrash className="md:hidden" size={16} />
+              <span className="hidden md:inline">Eliminar</span>
+            </button>
+          )}
+          </div>
         </div>
 
-        {
-          <div>
-            <div className="flex items-center justify-between w-full mb-4">
-              {/* Botón atrás (izquierda) */}
-              <div className="w-1/3 flex justify-start">
-                <button
-                  type="button"
-                  onClick={() => navigate(-1)}
-                  className="hidden md:inline px-1 py-1 bg-white rounded-full"
-                >
-                  <IoMdArrowRoundBack color={"black"} size={25} />
-                </button>
+        {publicacion && (
+          <>
+            {/* TÍTULO CENTRADO */}
+            <div className="publicacion-title-wrapper">
+              <div className="publicacion-title-content">
+                <h1 className="publicacion-title">
+                  {publicacion.titulo}
+                </h1>
+              </div>
+            </div>
+
+            {/* MODALES */}
+            {showEditModal && (
+              <EditarPublicacionModal
+                publicacion={publicacion}
+                isOpen={showEditModal}
+                onClose={() => setShowEditModal(false)}
+                onUpdate={() => {
+                  window.location.reload();
+                }}
+              />
+            )}
+
+            <PublicacionModal
+              name={publicacion.titulo}
+              date={publicacion.fecha}
+              tag={publicacion.tag}
+              id={publicacion._id}
+              isOpen={selectedPub}
+              onClose={() => setSelectedPub(false)}
+            />
+
+            {/* SLIDER */}
+            <div className="publicacion-slider-container">
+              <Slider key={publicacion._id} publicacion={publicacion} />
+            </div>
+
+            {/* DETALLES PRINCIPALES */}
+            <div className="publicacion-details-panel">
+              <div className="publicacion-author-info">
+                <h2 className="text-white text-sm md:text-base mb-2">
+                  <IoMdPerson className="inline mr-2 publicacion-icon" />
+                  <strong>Autor:</strong>{" "}
+                  <span
+                    className="publicacion-author-link"
+                    onClick={() => navigate(`/perfil/${publicacion.autor?._id}`)}
+                  >
+                    {publicacion.autor?.nombre || "Autor desconocido"}
+                  </span>
+                </h2>
               </div>
 
-              {/* Título (centro) */}
-              <h1 className="w-1/3 text-3xl font-bold text-white text-center">
-                {publicacion.titulo}
-              </h1>
+              {/* Descripción */}
+              <div className="publicacion-description">
+                <p className="text-white text-sm md:text-base mb-3">
+                  <strong>Descripción:</strong>
+                </p>
+                <div className="publicacion-description-content">
+                  {publicacion.contenido}
+                </div>
+              </div>
 
-              {/* Botón Eliminar (derecha) */}
-              <div className="w-1/3 flex justify-end">
-                {user && (user.tipoUsuario === 0 || user.tipoUsuario === 1) && (
-                  <div>
-                    <button
-                      className="bg-red-500 py-2 px-4 rounded hover:bg-red-600"
-                      onClick={() => setSelectedPub(true)}
+              {/* INFORMACIÓN ADICIONAL */}
+              <div className="space-y-4">
+                {/* PRECIOS */}
+                {mostrarPrecios && (
+                  <div className="publicacion-price-panel">
+                    <h3 className="text-white font-semibold mb-3">Precios:</h3>
+                    <div className="publicacion-price-grid">
+                      <div className="publicacion-price-item">
+                        <IoMdPerson className="mr-3 text-blue-400 publicacion-icon" size={18} />
+                        <div>
+                          <span className="font-medium text-white block">Precio regular:</span>
+                          <span className="text-blue-300">{formatPrecio(precioRegular)}</span>
+                        </div>
+                      </div>
+                      
+                      {precioEstudiante !== undefined && precioEstudiante !== null && (
+                        <div className="publicacion-price-item">
+                          <IoMdSchool className="mr-3 text-green-400 publicacion-icon" size={18} />
+                          <div>
+                            <span className="font-medium text-white block">Estudiante:</span>
+                            <span className="text-green-300">{formatPrecio(precioEstudiante)}</span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {precioCiudadanoOro !== undefined && precioCiudadanoOro !== null && (
+                        <div className="publicacion-price-item">
+                          <IoMdStar className="mr-3 text-yellow-400 publicacion-icon" size={18} />
+                          <div>
+                            <span className="font-medium text-white block">Ciudadano de oro:</span>
+                            <span className="text-yellow-300">{formatPrecio(precioCiudadanoOro)}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Fecha de evento */}
+                {publicacion.fechaEvento && (
+                  <div className="publicacion-info-item">
+                    <span className="publicacion-info-label">Fecha del evento:</span>
+                    <span className="publicacion-info-value">{formatFecha(publicacion.fechaEvento)}</span>
+                  </div>
+                )}
+
+                {/* Hora de evento */}
+                {mostrarHora && (
+                  <div className="publicacion-info-item">
+                    <span className="publicacion-info-label">Hora del evento:</span>
+                    <span className="publicacion-info-value">{publicacion.horaEvento}</span>
+                  </div>
+                )}
+
+                {/* Fecha de publicación */}
+                {publicacion.fecha && (
+                  <div className="publicacion-info-item">
+                    <span className="publicacion-info-label">Fecha de publicación:</span>
+                    <span className="publicacion-info-value">{formatFecha(publicacion.fecha)}</span>
+                  </div>
+                )}
+
+                {/* TIPO */}
+                <div className="publicacion-info-item">
+                  <span className="publicacion-info-label">Tipo:</span>
+                    <span className="publicacion-info-value">{publicacion.tag || "Sin tag"}</span>
+                </div>
+
+                {/* TELÉFONO */}
+                {telefono && (
+                  <div className="publicacion-info-item">
+                    <span className="publicacion-info-label">Teléfono:</span>
+                    <a 
+                      href={`tel:${telefono}`}
+                      className="publicacion-info-value text-blue-300 hover:text-blue-200 underline"
                     >
-                      Eliminar
-                    </button>
+                      {telefono}
+                    </a>
+                  </div>
+                )}
 
-                    <PublicacionModal
-                      name={publicacion.titulo}
-                      date={publicacion.fecha}
-                      tag={publicacion.tag}
-                      id={publicacion._id}
-                      isOpen={selectedPub}
-                      onClose={() => setSelectedPub(false)}
-                    />
+                {/* ENLACES EXTERNOS */}
+                {enlacesExternos.length > 0 && (
+                  <div className="publicacion-links-section">
+                    <h3 className="text-white font-semibold mb-3 flex items-center">
+                      <IoMdLink className="mr-2 text-purple-400 publicacion-icon" />
+                      Enlaces externos:
+                    </h3>
+                    <div className="publicacion-links-grid">
+                      {enlacesExternos.map((enlace, index) => {
+                        const enlaceFormateado = formatearEnlace(enlace.url);
+                        const icono = obtenerIconoEnlace(enlace.url);
+                        
+                        return (
+                          <div key={index} className="publicacion-link-item">
+                            <a
+                              href={enlaceFormateado}
+                              target={enlaceFormateado.startsWith('http') ? "_blank" : "_self"}
+                              rel={enlaceFormateado.startsWith('http') ? "noopener noreferrer" : ""}
+                              className="publicacion-link-content"
+                            >
+                              {icono}
+                              <span>{enlace.nombre}</span>
+                            </a>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
             </div>
 
-            <h2>
-              {publicacion.autor
-                ? publicacion.autor.nombre
-                : "Autor desconocido"}
-            </h2>
-            <Slider key={publicacion._id} publicacion={publicacion} />
-            <div className="text-white-600">
-              <p className="mt-2">
-                <strong>Fecha:</strong> {publicacion.fecha}
-              </p>
-              <p>
-                <strong>Categoría:</strong> {publicacion.tag}
-              </p>
-              <p className="mt-4 text-white whitespace-pre-line">{publicacion.contenido}</p>
+            {/* COMENTARIOS */}
+            <div className="publicacion-comments-section">
+              <ComentariosPub
+                comentarios={comentarios}
+                setComentarios={setComentarios}
+                publicacionId={publicacion._id}
+                usuario={user}
+              />
             </div>
-          </div>
-        }
-
-        {/* COMENTARIOS */}
-        <ComentariosPub
-          comentarios={comentarios}
-          setComentarios={setComentarios}
-          publicacionId={publicacion._id}
-          usuario={user}
-        />
+          </>
+        )}
       </div>
     </div>
   );

@@ -11,6 +11,14 @@ import {IniciarSesion} from './iniciarSesion'
 import {RecuperarContra} from './recuperarContra'
 import {NuevaContra} from './nuevaContra'
 import {CrearUsuario} from './crearUsuario'
+import CalendarView from './Calendar';
+import AdminCategorias from './adminCategorias';
+import AcercaDe from './AcercaDe';
+import Footer from './Footer';
+import CheckoutPremium from './CheckoutPremium';
+import PerfilPublico from './PerfilPublico';
+import EditarPerfil from './EditarPerfil';
+import BancoProfesionales from './BancoProfesionales';
 
 export const Rutas = () =>{
     
@@ -19,22 +27,29 @@ export const Rutas = () =>{
             <Navbar />
             <Routes>
                 <Route path = "/" element= {<Navigate to="/publicaciones" />}/>
-                <Route path = "/eventos" element = {<LandingPage/>}/>
-                <Route path = "/publicaciones" element = {<LandingPage/>}/>
+                <Route path = "/eventos" element = {<LandingPage tag="evento" />}/>
+                <Route path = "/publicaciones" element = {<LandingPage tag="publicacion" />}/>
                 <Route path = "/publicaciones/:id" element = {<PublicacionDetalle/>}/>
-                <Route path = "/emprendimientos" element = {<LandingPage/>}/>
+                <Route path = "/emprendimientos" element = {<LandingPage tag="emprendimiento" />}/>
                 <Route path = "/biblioteca/:id" element = {<Biblioteca/>}/>
                 <Route path = "/perfilUsuario" element= {<PerfilUsuario/>}/>
                 <Route path = "/iniciarSesion" element= {<IniciarSesion/>}/>
                 <Route path = "/recuperar" element= {<RecuperarContra/>}/>
                 <Route path = "/nuevaCont" element= {<NuevaContra/>}/>
-                 <Route path = "/crearUsr" element= {<CrearUsuario/>}/>
+                <Route path = "/crearUsr" element= {<CrearUsuario/>}/>
+                <Route path="/calendario" element={<CalendarView />} />
+                <Route path="/admin/categorias" element={<AdminCategorias />} />
+                <Route path="/acerca-de" element={<AcercaDe />} />
+                <Route path="/checkout-premium" element={<CheckoutPremium />} />
+                <Route path="/perfil/:id" element={<PerfilPublico />} />
+                <Route path="/mi-perfil/editar" element={<EditarPerfil />} />
+                <Route path="/profesionales" element={<BancoProfesionales />} />
 
 
-               
-                
+
                 <Route path="*" element={<Navigate to="/publicaciones" />} />
             </Routes>
+            <Footer />
         </Router>
     )
 }
